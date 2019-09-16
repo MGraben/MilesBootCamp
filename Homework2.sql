@@ -152,6 +152,15 @@ values ('Elvis','Costello, not Presely',cast('10/4/1954' as date), cast('1/4/201
 Go
 --rollback commit
 
+-------------------
+-- should fail:
 
+--Begin tran
+insert into  [dbo].[Tavern] ([tavernName],[floors],[userID],[tavernLocationID],[ratNameID])
+values ('Olde Ale House',2,99,2,1)		-- no user 99 (capture and send back to app w/error message)
+Go
+--rollback commit
+
+select @@TRANCOUNT
 
 select @@TRANCOUNT
