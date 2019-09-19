@@ -1,0 +1,211 @@
+/*
+Class 3 Assignment
+
+The system should also be able to track Rooms. Rooms should have a status and an associated tavern. 
+There should be a way to track Room Stays which will contain a sale, guest, room, date it was stayed in and the rate
+Write a query that returns guests with a birthday before 2000. 
+Write a query to return rooms that cost more than 100 gold a night
+Write a query that returns UNIQUE guest names. 
+Write a query that returns all guests ordered by name (ascending) Use ASC or DESC after your ORDER BY [col]
+Write a query that returns the top 10 highest price sales
+Write a query to return all Lookup Table Names - this is, not the names of the tables but the Names of things like Status/Role/Class,etc. (wUnion)
+Write a query that returns Guest Classes with Levels and Generate a new column with a label for their level grouping (lvl 1-10, 10-20, etc)
+Write a series of INSERT commands that will insert the statuses of one table into another of your choosing using SELECT statements (See our lab in class - The INSERT commands should be generated). It’s ok if the data doesn’t match or make sense! :)
+Remember, INSERT Commands look like: INSERT INTO Table1 (column1, column2) VALUES (column1, column2)
+
+Lab:
+ 
+SELECT 
+CONCAT('CREATE TABLE ',TABLE_NAME, ' (') as queryPiece 
+FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_NAME = 'Taverns'
+UNION ALL
+SELECT CONCAT(cols.COLUMN_NAME, ' ', cols.DATA_TYPE, 
+(CASE WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL 
+Then CONCAT('(', CAST(CHARACTER_MAXIMUM_LENGTH as varchar(100)), 
+')') Else '' END), ',') as queryPiece FROM 
+INFORMATION_SCHEMA.COLUMNS as cols WHERE
+TABLE_NAME = 'Taverns'
+UNION ALL
+SELECT ')';
+
+*/
+
+-- Rooms
+
+CREATE TABLE dbo.RoomStatus
+(
+	statusID int Identity(1,1) NOT NULL, 
+	statusName varchar(100) NOT NULL, 
+	statusDescription  varchar(max) NULL,
+    CONSTRAINT PK_Roomstatus PRIMARY KEY CLUSTERED (statusID ASC)
+)
+GO
+
+CREATE TABLE dbo.Rooms
+(
+	roomID int Identity(1,1) NOT NULL, 
+	tavernID int NOT NULL,										--FK to Tavern
+	roomName varchar(max) NULL,
+	statusID int NOT NULL,										--FK to RoomStatus
+	lastModfiedDate datetime NOT NULL Default getdate(),
+
+    CONSTRAINT PK_room PRIMARY KEY CLUSTERED (roomID ASC)
+)
+GO
+
+CREATE TABLE dbo.RoomStays
+(
+	stayID int Identity(1,1) NOT NULL, 
+	roomID int NOT NULL,										-- FK to Rooms
+	tavernID int NOT NULL,										--FK to Tavern
+	guestID int NOT NULL,										-- FK to Guests
+	rate decimal(18,2) NULL,
+	amountOfSale decimal(18,2) NULL,
+	dateOfStay datetime NULL,
+	lastModfiedDate datetime NOT NULL Default getdate(),
+
+    CONSTRAINT PK_RoomStays PRIMARY KEY CLUSTERED (stayID ASC)
+)
+GO
+
+-- add constraints
+
+ALTER TABLE [dbo].[Rooms]  WITH CHECK ADD  CONSTRAINT [FK_Rooms_RoomStatus] FOREIGN KEY([statusID])
+REFERENCES [dbo].[RoomStatus] ([statusID])
+GO
+
+ALTER TABLE [dbo].[Rooms] CHECK CONSTRAINT [FK_Rooms_RoomStatus]
+GO
+
+ALTER TABLE [dbo].[Rooms]  WITH CHECK ADD  CONSTRAINT [FK_Rooms_Tavern] FOREIGN KEY([tavernID])
+REFERENCES [dbo].[Tavern] ([tavernID])
+GO
+
+ALTER TABLE [dbo].[Rooms] CHECK CONSTRAINT [FK_Rooms_Tavern]
+GO
+
+---------------------------------------------
+
+ALTER TABLE [dbo].[RoomStays]  WITH CHECK ADD  CONSTRAINT [FK_RoomStays_Rooms] FOREIGN KEY([roomID])
+REFERENCES [dbo].[Rooms] ([roomID])
+GO
+
+ALTER TABLE [dbo].[RoomStays] CHECK CONSTRAINT [FK_RoomStays_Rooms]
+GO
+
+ALTER TABLE [dbo].[RoomStays]  WITH CHECK ADD  CONSTRAINT [FK_RoomStays_Tavern] FOREIGN KEY([tavernID])
+REFERENCES [dbo].[Tavern] ([tavernID])
+GO
+
+ALTER TABLE [dbo].[RoomStays] CHECK CONSTRAINT [FK_RoomStays_Tavern]
+GO
+
+ALTER TABLE [dbo].[RoomStays]  WITH CHECK ADD  CONSTRAINT [FK_RoomStays_Guests] FOREIGN KEY([guestID])
+REFERENCES [dbo].[Guests] ([guestID])
+GO
+
+ALTER TABLE [dbo].[RoomStays] CHECK CONSTRAINT [FK_RoomStays_Guests]
+GO
+
+------------------------------------------------------------------------------------------------
+-- Load some data
+
+--Begin tran 
+insert into [dbo].[RoomStatus] (statusName,statusDescription)
+values ('Occupied','has guest')
+,( 'Unoccupied','ready for next guest')
+,( 'Ready to be Cleaned','empty but dirty')
+,( 'Cleaned','cleaned but not approved')
+,( 'N/A','Not Available!')
+GO
+--rollback commit
+
+--Begin tran 
+insert into [dbo].[Rooms] (roomName,statusID,tavernID)
+values ('Penthouse',1,2)
+,('Haunted',3,2)
+,('Room 222',4,1)
+,('Honeymoon',1,3)
+,('Penthouse',3,2)
+GO
+--rollback commit
+
+Begin tran 
+insert into [dbo].[RoomStays] (roomID,guestID,tavernID,rate,amountOfSale,dateOfStay)
+values (1,3,2,340.00,1060,cast('3/14/2019' as date))
+,(3,6,3,140.00,1300,cast('7/1/2019' as date))
+,(2,7,1,40.00,666.66,cast('10/31/2018' as date))
+,(4,4,3,200.00,200,cast('2/14/2019' as date))
+,(5,7,3,740.00,1450,cast('8/14/2019' as date))
+GO
+--rollback commit
+
+select @@TRANCOUNT
+------------------------------------------------------------------------------
+--Write a query that returns guests with a birthday before 2000. 
+select * from dbo.Guests where birthday < cast('1/1/2000' as date) --cast('1/1/1984' as date)
+
+--Write a query to return rooms that cost more than 100 gold a night
+select rs.rate,* from dbo.Rooms r inner join dbo.RoomStays rs on
+r.roomID = rs.roomID
+where rs.rate > 100
+
+--Write a query that returns UNIQUE guest names. 
+select distinct guestName,* from Guests
+
+--Write a query that returns all guests ordered by name (ascending) Use ASC or DESC after your ORDER BY [col]
+select * from Guests order by guestName desc
+
+--Write a query that returns the top 10 highest price sales
+select top 5 * from Sales order by price desc
+
+--Write a query to return all Lookup Table Names - this is, not the names of the table
+-- but the Names of things like Status/Role/Class,etc. (wUnion)
+select [guestLevel] Name, [guestClass] Descript from [dbo].[ClassLevel]
+union all
+select statusName Name,statusDescription Descript from [dbo].[GuestStatus]
+union all
+select statusName Name,statusDescription Descript from [dbo].[RoomStatus]
+union all
+select statusName Name,statusDescription Descript  from [dbo].[ServiceStatus]
+union all
+select ts.serviceName Name, s.statusName Descript from [dbo].[TavernServices] ts inner join [dbo].[ServiceStatus] s on
+ts.statusID  =s.statusID
+
+
+--Write a query that returns Guest Classes with Levels and Generate a new column with a label for their level grouping (lvl 1-10, 10-20, etc)
+select guestLevel,guestClass
+,case when guestlevel between 1 and 2 then 'level 1-2'
+	when guestlevel between 3 and 5 then 'level 3-5'
+	end as lvlgrp
+from [dbo].[ClassLevel]
+
+
+--Write a series of INSERT commands that will insert the statuses of one table into another of your choosing 
+--using SELECT statements 
+--	(See our lab in class - The INSERT commands should be generated). It’s ok if the data doesn’t match or make sense! :)
+--Remember, INSERT Commands look like: INSERT INTO Table1 (column1, column2) VALUES (column1, column2)
+
+
+Select 'INSERT INTO dbo.GuestStatus2 ('
+union all
+select  colName 
+from (
+select ordinal_position,
+ CONCAT(COLUMN_NAME,  ' ',
+	case when ORDINAL_POSITION <> 3 then ',' else '' end
+
+	 ) colName	
+from INFORMATION_SCHEMA.COLUMNS where TABLE_NAME = 'GuestStatus'
+)a
+union all
+select ') VALUES ('	
+union all
+	select CONCAT( CONVERT(varchar(10), statusID)  , ',''' , statusName + ''', ''' , statusDescription + '''),')  from [dbo].[ServiceStatus] where statusID = 1
+union all
+	select CONCAT( '(', CONVERT(varchar(10), statusID)  , ',''' , statusName , ''', ''' ,statusDescription + ''')')  from [dbo].[ServiceStatus] where statusID = 2
+union all
+select ' 
+Go'
+
