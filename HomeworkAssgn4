@@ -1,0 +1,142 @@
+/*
+Homework Assignment 4
+
+Write a query to return users who have admin roles
+Write a query to return users who have admin roles and information about their taverns
+Write a query that returns all guests ordered by name (ascending) and their classes and corresponding levels
+Write a query that returns the top 10 sales in terms of sales price and what the services were
+Write a query that returns guests with 2 or more classes
+Write a query that returns guests with 2 or more classes with levels higher than 5
+Write a query that returns guests with ONLY their highest level class
+Write a query that returns guests that stay within a date range. Please remember that guests can stay for more than one night AND not all of the dates they stay have to be in that range (just some of them)
+Using the additional queries provided, take the lab’s SELECT ‘CREATE query’ and add any IDENTITY and PRIMARY KEY constraints to it.
+
+
+SELECT 
+CONCAT('CREATE TABLE ',TABLE_NAME, ' (') as queryPiece 
+FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_NAME = 'Taverns'
+UNION ALL
+SELECT CONCAT(cols.COLUMN_NAME, ' ', cols.DATA_TYPE, 
+(
+	CASE WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL 
+	Then CONCAT
+		('(', CAST(CHARACTER_MAXIMUM_LENGTH as varchar(100)), ')') 
+	Else '' 
+	END)
+, 
+	CASE WHEN refConst.CONSTRAINT_NAME IS NOT NULL
+	Then 
+		(CONCAT(' FOREIGN KEY REFERENCES ', constKeys.TABLE_NAME, '(', constKeys.COLUMN_NAME, ')')) 
+	Else '' 
+	END
+, 
+',') as queryPiece FROM 
+INFORMATION_SCHEMA.COLUMNS as cols
+LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE as keys ON 
+(keys.TABLE_NAME = cols.TABLE_NAME and keys.COLUMN_NAME = cols.COLUMN_NAME)
+LEFT JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS as refConst ON 
+(refConst.CONSTRAINT_NAME = keys.CONSTRAINT_NAME)
+LEFT JOIN 
+(SELECT DISTINCT CONSTRAINT_NAME, TABLE_NAME, COLUMN_NAME 
+FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE) as constKeys 
+ON (constKeys.CONSTRAINT_NAME = refConst.UNIQUE_CONSTRAINT_NAME)
+ WHERE cols.TABLE_NAME = 'Taverns'
+UNION ALL
+SELECT ')'; 
+*/
+
+
+---------------------------------------------------------------------------------
+--Write a query to return users who have admin roles
+select * from Users where roleID in (Select roleID from Roles where roleName = 'Admin')
+select * from Users u inner join Roles r on
+u.roleID = r.roleID
+where r.roleName = 'Admin'
+
+--Write a query to return users who have admin roles and information about their taverns
+select * from Users u inner join Roles r on
+u.roleID = r.roleID
+inner join Tavern t on
+u.userID = t.userID
+where r.roleName = 'Admin'		--other Admin does not have a Tavern
+
+--Write a query that returns all guests ordered by name (ascending) and their classes and corresponding levels
+select * from Guests
+order by guestName		-- my table is not structured the same way yours is so my query doesn't return what you are looking for
+						-- I will have to create tables like yours first
+
+--Write a query that returns the top 10 sales in terms of sales price and what the services were
+select top 10 * from Sales s inner join TavernServices ts on
+s.serviceID = ts.serviceID
+order by s.price desc
+
+select top 10 s.price,s.amountPurchased,ts.serviceName from Sales s inner join TavernServices ts on
+s.serviceID = ts.serviceID
+order by s.price desc, s.amountPurchased desc
+
+--Write a query that returns guests with 2 or more classes
+select guestName,guestClass from Guests g inner join [dbo].[ClassLevel] cl on
+g.clID = cl.clID
+group by guestName,guestClass
+Having count(guestClass) > 1
+
+
+--Write a query that returns guests with 2 or more classes with levels higher than 5
+select guestName,guestClass from Guests g inner join [dbo].[ClassLevel] cl on
+g.clID = cl.clID
+where guestLevel > '5'	--2
+group by guestName,guestClass
+Having count(guestClass) > 1
+
+
+--Write a query that returns guests with ONLY their highest level class
+select max(guestLevel) HighestLevel, guestName,guestClass from Guests g inner join [dbo].[ClassLevel] cl on
+g.clID = cl.clID
+group by guestName,guestClass
+
+--Write a query that returns guests that stay within a date range. 
+--Please remember that guests can stay for more than one night 
+-- AND not all of the dates they stay have to be in that range (just some of them)
+select * from Guests g inner join RoomStays rs on
+g.guestID = rs.guestID
+where dateOfStay between cast('1/1/2019' as datetime) and cast('8/1/2019' as datetime)
+
+
+
+--Using the additional queries provided, take the lab’s SELECT ‘CREATE query’ and add any IDENTITY and PRIMARY KEY constraints to it.
+
+SELECT 
+CONCAT('CREATE TABLE ',TABLE_NAME, ' (') as queryPiece 
+FROM INFORMATION_SCHEMA.TABLES
+ WHERE TABLE_NAME = 'Tavern'
+UNION ALL
+SELECT CONCAT(cols.COLUMN_NAME, ' ', cols.DATA_TYPE, 
+(
+	CASE WHEN CHARACTER_MAXIMUM_LENGTH IS NOT NULL 
+	Then CONCAT
+		('(', CAST(CHARACTER_MAXIMUM_LENGTH as varchar(100)), ')') 
+	Else '' 
+	END)
+, 
+	CASE WHEN refConst.CONSTRAINT_NAME IS NOT NULL
+	Then 
+		(CONCAT(' FOREIGN KEY REFERENCES ', constKeys.TABLE_NAME, '(', constKeys.COLUMN_NAME, ')')) 
+	when constKeys.CONSTRAINT_NAME IS NULL  and keys.CONSTRAINT_NAME IS NOT NULL				-- PK logic
+		then ' PRIMARY KEY IDENTITY(1,1) '
+	Else '' 
+	END
+, 
+',') as queryPiece FROM 
+INFORMATION_SCHEMA.COLUMNS as cols
+LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE as keys ON 
+(keys.TABLE_NAME = cols.TABLE_NAME and keys.COLUMN_NAME = cols.COLUMN_NAME)
+LEFT JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS as refConst ON 
+(refConst.CONSTRAINT_NAME = keys.CONSTRAINT_NAME)
+LEFT JOIN 
+(SELECT DISTINCT CONSTRAINT_NAME, TABLE_NAME, COLUMN_NAME 
+FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE) as constKeys 
+ON (constKeys.CONSTRAINT_NAME = refConst.UNIQUE_CONSTRAINT_NAME)
+ WHERE cols.TABLE_NAME = 'Tavern'
+UNION ALL
+SELECT ')';
