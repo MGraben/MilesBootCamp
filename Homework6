@@ -1,0 +1,184 @@
+/*
+Homework class 6
+Stored Procedures
+Write a stored procedure that takes a class name and returns all guests that have any levels of that class
+Write a stored procedure that takes a guest id and returns the total that guest spent on services
+Write a stored procedure that takes a level and an optional argument that determines whether the procedure returns guests of that level and higher or that level and lower
+Write a stored procedure that deletes a Tavern ( don’t run it yet or rollback your transaction if you do )
+Write a trigger that watches for deleted taverns and use it to remove taverns, supplies, rooms, and services tied to it
+Write a stored procedure that uses the function from the last assignment that returns open rooms with their prices, and automatically book the lowest price room with a guest for one day
+Write a trigger that watches for new bookings and adds a new sale for the guest for a service (for free if you can in your schema)
+
+*/
+
+
+--1. Write a stored procedure that takes a class name and returns all guests that have any levels of that class
+
+select * from dbo.Levels l inner join [dbo].[Class] c on
+l.classID = c.clid
+inner join dbo.Guests g on
+l.guestID = g.guestID
+where c.className = 'jester'
+
+CREATE PROCEDURE GuestClasses 
+@ClassName varchar(30)
+AS
+select * from dbo.Levels l inner join [dbo].[Class] c on
+l.classID = c.clid
+inner join dbo.Guests g on
+l.guestID = g.guestID
+where c.className =  @ClassName
+
+EXEC GuestClasses @ClassName = 'jester';
+
+
+
+--2. Write a stored procedure that takes a guest id and returns the total that guest spent on services
+select g.guestName,sum(amountPurchased)	AmtSpent	--select *
+ from [dbo].[Sales] s inner join [dbo].[TavernServices] ts on
+s.serviceID = ts.serviceID
+inner join [dbo].[Guests] g on
+s.guestID = g.guestID
+where g.guestID = 5
+Group by g.guestName
+
+CREATE PROCEDURE GuestSpent 
+@GuestID int
+AS
+select g.guestName,sum(amountPurchased)	AmtSpent	--select *
+ from [dbo].[Sales] s inner join [dbo].[TavernServices] ts on
+s.serviceID = ts.serviceID
+inner join [dbo].[Guests] g on
+s.guestID = g.guestID
+where g.guestID = 5
+Group by g.guestName
+
+EXEC GuestSpent @GuestID = 5;
+
+--3. Write a stored procedure that takes a level and an optional argument that determines whether the procedure 
+--	returns guests of that level and higher or that level and lower
+
+CREATE PROCEDURE GuestLevelHiLo 
+@LevelID int, @HiLo varchar(2)
+AS
+If @HiLo = 'Hi'	-- want higher levels
+Begin
+	
+	select * from dbo.Levels l inner join [dbo].[Class] c on
+	l.classID = c.clid
+	inner join dbo.Guests g on
+	l.guestID = g.guestID
+	where l.lid >= @LevelID
+End
+Else if @HiLo = 'Lo'	-- want lower levels
+Begin
+	select * from dbo.Levels l inner join [dbo].[Class] c on
+	l.classID = c.clid
+	inner join dbo.Guests g on
+	l.guestID = g.guestID
+	where l.lid <= @LevelID
+End
+Else	
+Begin	--didn't specify, so default
+	select * from dbo.Levels l inner join [dbo].[Class] c on
+	l.classID = c.clid
+	inner join dbo.Guests g on
+	l.guestID = g.guestID
+	where l.lid = @LevelID
+End
+
+EXEC GuestLevelHiLo @LevelID = 5,@HiLo = 'Hi'
+EXEC GuestLevelHiLo @LevelID = 5,@HiLo = 'Lo'
+EXEC GuestLevelHiLo @LevelID = 5,@HiLo = ''
+
+--4. Write a stored procedure that deletes a Tavern ( don’t run it yet or rollback your transaction if you do )
+CREATE PROCEDURE DeleteTavern 
+@TavernName varchar(30)
+AS
+Delete from dbo.Tavern
+where tavernName =  @TavernName
+
+EXEC DeleteTavern @TavernName = 'Local Watering';
+
+--5. Write a trigger that watches for deleted taverns and use it to remove taverns, supplies, rooms, and services tied to it
+
+-- drop trigger RemoveTavernInfoTrigger
+CREATE TRIGGER RemoveTavernInfoTrigger
+ON [dbo].[Tavern]
+AFTER DELETE -- UPDATE, DELETE (INSTEAD OF)
+AS BEGIN
+	--delete from [dbo].[Inventory] where [tavernID] = (select tavernID from inserted where tavernID = deleted.tavernID)
+	update [dbo].[Rooms]  set statusID = 15 where tavernID = (select tavernID from deleted where tavernID = deleted.tavernID)
+	
+	update [dbo].[TavernServices]  set statusID = 2 where tavernID = (select tavernID from deleted where tavernID = deleted.tavernID)
+
+	
+	update  [dbo].[Inventory] set amtInInventory = 0 where tavernID = (select tavernID from deleted where tavernID = deleted.tavernID)
+
+
+END
+go;
+
+
+--6. Write a stored procedure that uses the function from the last assignment that returns open rooms with their prices,
+-- and automatically book the lowest price room with a guest for one day
+
+-- my schema isn't set up exactly for this...
+--select * from dbo.Rooms r 
+--where statusID not in (11,13,15)
+
+-- find tavern with min priced open room 
+Declare  @min int = 0 , @max int = 2000
+,@newRate decimal(18,2), @newTavernid int
+,@OpenRoomID int,@Saleid int
+Select top 1 @newTavernid = tavernID from [dbo].[Tavern] where tavernID <> (Select top 1 tavernID from dbo.RoomPrices (@min , @max )Group by rate,roomName,tavernName ,tavernID
+Having rate = min(rate))
+
+select @newTavernid
+
+--get room
+select @OpenRoomID = roomID from dbo.Rooms r 
+where tavernID = @newTavernid
+
+select @OpenRoomID
+
+--room price?
+Select @newRate = rate from dbo.RoomStays where roomID = @OpenRoomID
+
+-- book room 
+
+INSERT INTO dbo.Sales (serviceID,tavernID,guestID,price,amountPurchased,datePurchased)
+Values
+(9,1,1,@newRate,1,getdate())
+
+Select @Saleid = (Select top 1 salesID from dbo.Sales order by salesid desc )
+select @Saleid
+
+INSERT INTO dbo.RoomStays(roomID,guestID,rate,salesID,dateOfStay) 
+VALUES 
+(@OpenRoomID, 1, @newRate,@Saleid, GETDATE());
+
+
+
+--7. Write a trigger that watches for new bookings and adds a new sale for the guest for a service 
+--(for free if you can in your schema)
+
+-- drop trigger UpdateInventoryTrigger
+CREATE TRIGGER NewBookingsTrigger
+ON [dbo].[TavernServices]
+AFTER INSERT -- UPDATE, DELETE (INSTEAD OF)
+AS BEGIN
+
+
+	INSERT INTO dbo.Sales (serviceID,tavernID,guestID,price,amountPurchased,datePurchased)
+	Values
+	((Select serviceID from inserted where serviceID = inserted.serviceID)
+		,(Select tavernID from inserted where tavernID = inserted.tavernID)
+		,1
+		,0
+		,1
+		,getdate())
+
+
+END
+go;
